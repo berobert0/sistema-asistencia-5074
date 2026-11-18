@@ -65,11 +65,7 @@ async function registerCode(code) {
   }
 }
 async function startCamera() {
-  if(!CONFIG.APPS_SCRIPT_URL.startsWith("https://script.google.com/")) {
-    status("Falta configurar conexión","Debes colocar la URL /exec de Apps Script en app.js.",true);
-    showResult("Configuración pendiente","Aún no se ha configurado la dirección del sistema 5074.","error");
-    return;
-  }
+  // La cámara se puede probar sin backend. La autorización solo se exige al registrar.
   if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     status("Cámara no disponible","Abre esta página mediante GitHub Pages (HTTPS) en Chrome o Safari.",true);
     $("retryBtn").hidden=false; return;
