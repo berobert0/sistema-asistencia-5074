@@ -32,3 +32,10 @@ La página puede iniciar la cámara incluso si se abre directamente, para compro
 
 
 CONEXIÓN: app.js debe tener APPS_SCRIPT_URL configurada con la URL /exec de la implementación de Google Apps Script. El ID de Google Sheets permanece en Code.gs, no se publica en GitHub. El escáner envía los QR al endpoint Apps Script usando un ticket temporal generado después del login.
+
+
+ACTUALIZACIÓN DE RESULTADOS DEL ESCÁNER
+Esta versión muestra el nombre, código, grado, sección, estado y FOTO_URL que devuelve
+registrarAsistencia() desde la hoja ALUMNOS. También muestra los datos cuando el backend
+detecta un registro duplicado. Si FOTO_URL no es una URL HTTP/HTTPS accesible desde el
+navegador, la tarjeta muestra los demás datos y oculta la imagen.
