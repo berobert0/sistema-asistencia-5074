@@ -3,7 +3,7 @@
    No registra directamente: envía el QR a Apps Script con un ticket limitado. */
 const CONFIG = {
   // Reemplazar por la URL /exec de la aplicación web Apps Script del sistema 5074.
-  APPS_SCRIPT_URL: "PEGAR_AQUI_URL_WEB_APP_EXEC"
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzk4qk30eq65JoCO8vtTEIJit6sHPMHBEVItWmP-2BAwmw4MS_9MTNnkNC7um9dTfqP/exec"
 };
 const $ = id => document.getElementById(id);
 let scanner = null;
