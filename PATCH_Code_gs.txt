@@ -1,0 +1,50 @@
+function doGet(e) {
+  const accion = e && e.parameter ? String(e.parameter.accion || '') : '';
+  if (accion === 'registrarQR') return respuestaJsonpEscaner_(e);
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Asistencia QR | I.E. 5074');
+}
+
+/**
+ * Emite un ticket temporal y de alcance limitado para abrir el escáner externo.
+ * Llamar desde el frontend autenticado con google.script.run.crearTicketEscaner(token).
+ */
+function crearTicketEscaner(token) {
+  const user = auth_(token);
+  if (!user || !['ADMIN','DOCENTE'].includes(String(user.rol || '').toUpperCase())) {
+    return {ok:false, message:'No tienes permiso para utilizar el escáner.'};
+  }
+  const ticket = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
+  const cache = CacheService.getScriptCache();
+  cache.put('QR_TICKET_' + ticket, String(token), 21600);
+  return {ok:true, ticket:ticket, expiresIn:21600};
+}
+
+/**
+ * Endpoint JSONP para GitHub Pages. Solo acepta un ticket emitido por crearTicketEscaner.
+ * La función registrarAsistencia vuelve a validar la sesión y el alcance del usuario.
+ */
+function respuestaJsonpEscaner_(e) {
+  const p = e && e.parameter ? e.parameter : {};
+  const callback = String(p.callback || '');
+  const codigo = String(p.codigo || '').trim();
+  const ticket = String(p.ticket || '');
+  let result;
+  if (!/^[A-Za-z_$][0-9A-Za-z_$\.]{0,80}$/.test(callback)) {
+    return ContentService.createTextOutput('/* callback inválido */')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  try {
+    if (!ticket || !codigo || codigo.length > 200) throw new Error('Solicitud incompleta.');
+    const token = CacheService.getScriptCache().get('QR_TICKET_' + ticket);
+    if (!token) throw new Error('La autorización del escáner venció. Regresa al sistema e inténtalo nuevamente.');
+    const user = auth_(token);
+    if (!user || !['ADMIN','DOCENTE'].includes(String(user.rol || '').toUpperCase())) throw new Error('La sesión ya no está autorizada.');
+    result = registrarAsistencia(token, codigo);
+  } catch (err) {
+    result = {ok:false, message:err && err.message ? err.message : 'No se pudo validar el registro.'};
+  }
+  const json = JSON.stringify(result).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026');
+  return ContentService.createTextOutput(callback + '(' + json + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
