@@ -25,3 +25,7 @@ En `app.js`, sustituye `PEGAR_AQUI_URL_WEB_APP_EXEC` por la URL `/exec` de tu ap
 Sistema 5074 (login) -> botón Asistencia QR -> backend crea ticket limitado -> abre GitHub Pages en pestaña nueva con ticket -> cámara se activa -> QR -> Apps Script valida ticket, usuario, estado, sección y estudiante -> registra asistencia en Sheets.
 
 No usar el endpoint antiguo que escribe en Sheets sin validar sesión.
+
+
+## Prueba de cámara
+La página puede iniciar la cámara incluso si se abre directamente, para comprobar que el navegador reconoce el dispositivo. En ese modo solo lee el QR y muestra que falta autorización; NO registra asistencia. Para registrar, abre el escáner desde la sesión autenticada del sistema 5074 para recibir un ticket temporal.

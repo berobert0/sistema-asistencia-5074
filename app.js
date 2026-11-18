@@ -38,6 +38,12 @@ function jsonp(url) {
 async function registerCode(code) {
   if(locked || !code) return;
   locked=true;
+  if(!ticket) {
+    showResult("Código leído: "+code,"La cámara funciona. Para registrar asistencia, abre este escáner desde el botón Asistencia QR después de iniciar sesión en el sistema 5074.","warning");
+    status("Cámara funcionando · falta autorización","Vuelve al sistema 5074 e ingresa desde Asistencia QR.");
+    locked=false;
+    return;
+  }
   status("Validando código QR…","Consultando el sistema institucional.");
   try {
     const url=CONFIG.APPS_SCRIPT_URL+"?accion=registrarQR&ticket="+encodeURIComponent(ticket)+"&codigo="+encodeURIComponent(code);
@@ -59,11 +65,6 @@ async function registerCode(code) {
   }
 }
 async function startCamera() {
-  if(!ticket) {
-    status("Falta autorización","Abre el escáner desde el botón Asistencia QR del sistema 5074.",true);
-    showResult("Acceso no autorizado","No se recibió el ticket de sesión. Regresa al sistema y abre el escáner desde allí.","error");
-    return;
-  }
   if(!CONFIG.APPS_SCRIPT_URL.startsWith("https://script.google.com/")) {
     status("Falta configurar conexión","Debes colocar la URL /exec de Apps Script en app.js.",true);
     showResult("Configuración pendiente","Aún no se ha configurado la dirección del sistema 5074.","error");
@@ -87,8 +88,13 @@ async function startCamera() {
       for(const cam of ordered){try{await scanner.start(cam.id,{fps:12,qrbox:{width:240,height:240}},registerCode,()=>{});started=true;break;}catch(e){lastError=e;}}
       if(!started) throw lastError;
     }
-    status("Cámara activa","Enfoca el código QR dentro del recuadro.");
-    showResult("Escáner listo","Esperando el código QR del estudiante.");
+    if(ticket) {
+      status("Cámara activa y autorizada","Enfoca el código QR dentro del recuadro.");
+      showResult("Escáner listo","Esperando el código QR del estudiante.");
+    } else {
+      status("Cámara activa · modo de prueba","Para registrar asistencia, abre el escáner desde el sistema 5074 después de iniciar sesión.");
+      showResult("Cámara funcionando","La lectura QR está disponible; el registro requiere autorización del sistema 5074.","warning");
+    }
     $("retryBtn").hidden=true;
   } catch(e) {
     status("No se pudo activar la cámara",e.message||String(e),true);
