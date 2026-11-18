@@ -1,32 +1,24 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://unpkg.com/html5-qrcode"></script>
-
+<title>Escáner QR | I.E. 5074</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
-
 <div class="header">
   <h2>I.E. "5074 Alcides Spelucín Vega"</h2>
-  <p>3ro C Nivel Primaria</p>
-  <p>👨‍🏫 Prof. Robert Egúsquiza</p>
-  <p>🕒 7:40 a.m - 12:40 p.m</p>
+  <p>Escáner QR de asistencia</p>
 </div>
-
 <div id="reader"></div>
-
 <div class="panel">
-  <img id="foto" class="foto">
-  <div id="nombre" class="nombre"></div>
-  <div id="estado" class="estado"></div>
-  <div id="mensaje" class="mensaje"></div>
+  <div id="nombre" class="nombre">Esperando código QR</div>
+  <div id="estado" class="estado">CÁMARA</div>
+  <div id="mensaje" class="mensaje">La cámara se iniciará automáticamente. Permite el acceso cuando el navegador lo solicite.</div>
+  <button id="retry" type="button" hidden>Reintentar cámara</button>
 </div>
-
 <script src="app.js"></script>
-
 </body>
 </html>
