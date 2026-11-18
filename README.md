@@ -1,14 +1,34 @@
-# Escáner QR 5074 — basado en el código que el usuario confirmó que funciona
+# Escáner QR - I.E. 5074 Alcides Spelucín Vega
 
-## Subir a GitHub Pages
-Sube `index.html`, `app.js` y `style.css` a la raíz del repositorio y habilita Pages en `main / (root)`.
+Este repositorio contiene el frontend independiente para GitHub Pages. La cámara se ejecuta en una página HTTPS de nivel superior, no dentro del iframe de Apps Script.
 
-## Cámara
-Se conserva la llamada de cámara del ejemplo funcional:
-`qr.start({ facingMode: "environment" }, { fps: 10, qrbox: 200 }, ...)`
+## Archivos
+- `index.html`: pantalla del escáner.
+- `app.js`: cámara, lectura QR y conexión JSONP con Apps Script.
+- `style.css`: diseño adaptable.
 
-## Alcance de esta versión
-Esta entrega comprueba que GitHub Pages pueda abrir la cámara y leer el QR. No escribe en Google Sheets todavía.
+## IMPORTANTE: conexión segura pendiente
+Este paquete no registra asistencias por sí solo. Necesita que el backend Apps Script del sistema 5074 implemente el ticket de escáner limitado y la acción `accion=registrarQR`. El ticket debe ser emitido únicamente después de validar la sesión ADMIN/DOCENTE y debe quedar vinculado a esa sesión. No publiques el escáner hasta que esté instalada esa parte del backend.
 
-## Seguridad
-No se reutiliza el endpoint del `apps_script.gs` original para registrar asistencia: ese endpoint acepta `?codigo=` sin sesión, crea el nombre como `Alumno <codigo>` y permite que cualquiera que conozca la URL intente registrar códigos. Tampoco se reutiliza el login `admin/1234` de `panel.html`. La conexión al sistema 5074 debe hacerse con validación de sesión, rol, sección y estudiante en el backend institucional.
+En `app.js`, sustituye `PEGAR_AQUI_URL_WEB_APP_EXEC` por la URL `/exec` de tu aplicación web de Apps Script.
+
+## Activar GitHub Pages
+1. En el repositorio, pulsa **Add file > Upload files**.
+2. Sube `index.html`, `app.js` y `style.css` (en la raíz).
+3. Pulsa **Commit changes**.
+4. Entra en **Settings > Pages**.
+5. En **Build and deployment**, selecciona **Deploy from a branch**.
+6. Selecciona `main` y `/ (root)`, y pulsa **Save**.
+7. Espera a que GitHub muestre la URL publicada.
+
+## Flujo final esperado
+Sistema 5074 (login) -> botón Asistencia QR -> backend crea ticket limitado -> abre GitHub Pages en pestaña nueva con ticket -> cámara se activa -> QR -> Apps Script valida ticket, usuario, estado, sección y estudiante -> registra asistencia en Sheets.
+
+No usar el endpoint antiguo que escribe en Sheets sin validar sesión.
+
+
+## Prueba de cámara
+La página puede iniciar la cámara incluso si se abre directamente, para comprobar que el navegador reconoce el dispositivo. En ese modo solo lee el QR y muestra que falta autorización; NO registra asistencia. Para registrar, abre el escáner desde la sesión autenticada del sistema 5074 para recibir un ticket temporal.
+
+
+CONEXIÓN: app.js debe tener APPS_SCRIPT_URL configurada con la URL /exec de la implementación de Google Apps Script. El ID de Google Sheets permanece en Code.gs, no se publica en GitHub. El escáner envía los QR al endpoint Apps Script usando un ticket temporal generado después del login.
