@@ -265,7 +265,8 @@ function obtenerResumen(token) {
 function buscarAlumno(token, codigo) {
   const user = auth_(token), visible = alumnosVisibles_(user), h = visible.headers;
   const cCode = col_(h,'CODIGO_ALUMNO'), cQr = h.indexOf('CODIGO_QR');
-  const found = visible.rows.find(r => r[cCode] === String(codigo) || (cQr >= 0 && r[cQr] === String(codigo)));
+  const scanned = String(codigo || '').trim();
+  const found = visible.rows.find(r => String(r[cCode] || '').trim().toUpperCase() === scanned.toUpperCase() || (cQr >= 0 && String(r[cQr] || '').trim().toUpperCase() === scanned.toUpperCase()));
   if (!found) return {ok:false,message:user.rol === 'DOCENTE' ? 'El estudiante no pertenece a tu sección asignada.' : 'No se encontró el código del estudiante.'};
   const obj = {};
   ['CODIGO_ALUMNO','APELLIDOS_Y_NOMBRES','GRADO','SECCION','FOTO_URL','CODIGO_QR','ESTADO']
@@ -273,7 +274,7 @@ function buscarAlumno(token, codigo) {
   return {ok:true,alumno:obj};
 }
 
-/** Ticket temporal de escáner para usuarios ya autenticados. */
+/** Emite ticket temporal para el escáner después de autenticar al usuario. */
 function crearTicketEscaner(token) {
   const user = auth_(token);
   if (!user || !['ADMIN','DOCENTE'].includes(String(user.rol || '').toUpperCase())) {
@@ -281,24 +282,26 @@ function crearTicketEscaner(token) {
   }
   const ticket = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
   CacheService.getScriptCache().put('QR_TICKET_' + ticket, String(token), 1200);
-  return {ok:true, ticket:ticket, expiresIn:1200};
+  return {ok:true, ticket:ticket, expiresIn:1200, endpoint:ScriptApp.getService().getUrl()};
 }
 
-/** Endpoint JSONP: recibe QR desde GitHub y delega el registro al backend seguro. */
+/** Recibe el código desde GitHub Pages y delega la escritura al método autenticado. */
 function respuestaJsonpEscaner_(e) {
   const p = e && e.parameter ? e.parameter : {};
   const callback = String(p.callback || '');
   const ticket = String(p.ticket || '');
   const codigo = String(p.codigo || '').trim();
+
   if (!/^[A-Za-z_$][0-9A-Za-z_$\\.]{0,80}$/.test(callback)) {
     return ContentService.createTextOutput('/* callback inválido */')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
+
   let result;
   try {
     if (!ticket || !codigo || codigo.length > 200) throw new Error('Solicitud incompleta.');
     const token = CacheService.getScriptCache().get('QR_TICKET_' + ticket);
-    if (!token) throw new Error('La autorización venció. Regresa al sistema y vuelve a abrir el escáner.');
+    if (!token) throw new Error('La autorización del escáner venció. Regresa al sistema y vuelve a abrirlo.');
     const user = auth_(token);
     if (!user || !['ADMIN','DOCENTE'].includes(String(user.rol || '').toUpperCase())) {
       throw new Error('No tienes permiso para registrar asistencia.');

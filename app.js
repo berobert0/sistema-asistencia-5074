@@ -2,8 +2,8 @@
    La cámara se inicia desde esta página HTTPS abierta como pestaña principal.
    No registra directamente: envía el QR a Apps Script con un ticket limitado. */
 const CONFIG = {
-  // Reemplazar por la URL /exec de la aplicación web Apps Script del sistema 5074.
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzk4qk30eq65JoCO8vtTEIJit6sHPMHBEVItWmP-2BAwmw4MS_9MTNnkNC7um9dTfqP/exec"
+  // Se recibe automáticamente desde el botón autenticado de Apps Script.
+  APPS_SCRIPT_URL: new URLSearchParams(location.search).get("api") || ""
 };
 const $ = id => document.getElementById(id);
 let scanner = null;
@@ -16,35 +16,39 @@ function status(title, text, bad=false) {
   $("statusText").textContent = text;
   $("statusTitle").style.color = bad ? "#ff9aa8" : "#eaf2fb";
 }
-function showResult(title, message, kind="ok") {
+function showResult(title, message, kind="ok", alumno=null, extra={}) {
   const box=$("result");
   box.className="result"+(kind==="error"?" error":kind==="warning"?" warning":"");
   $("studentName").textContent=title;
   $("resultMessage").textContent=message;
   $("resultIcon").textContent=kind==="error"?"!":kind==="warning"?"⚠":"✓";
-}
-function showStudentDetails(alumno, message, kind="ok") {
-  const box=$("result");
-  box.className="result student-result"+(kind==="error"?" error":kind==="warning"?" warning":"");
-  $("resultIcon").textContent=kind==="error"?"!":kind==="warning"?"⚠":"✓";
-  $("studentName").textContent=alumno?.APELLIDOS_Y_NOMBRES || "Estudiante identificado";
-  $("resultMessage").textContent=message || "Datos del estudiante encontrados.";
-  $("studentCode").textContent=alumno?.CODIGO_ALUMNO || "—";
-  $("studentGrade").textContent=[alumno?.GRADO,alumno?.SECCION].filter(Boolean).join(" - ") || "—";
-  $("studentState").textContent=alumno?.ESTADO || "—";
-  const photo=$("studentPhoto");
-  const photoWrap=$("studentPhotoWrap");
-  const url=String(alumno?.FOTO_URL || "").trim();
-  if(url && /^https?:\/\//i.test(url)) {
-    photo.src=url;
-    photo.onload=()=>{photoWrap.hidden=false;};
-    photo.onerror=()=>{photo.removeAttribute("src");photoWrap.hidden=true;};
-    photoWrap.hidden=false;
-  } else {
-    photo.removeAttribute("src");
-    photoWrap.hidden=true;
+  const details=$("studentDetails");
+  if (!details) return;
+  details.replaceChildren();
+  if (!alumno) { details.hidden=true; return; }
+  details.hidden=false;
+  const photoUrl=String(alumno.FOTO_URL||"").trim();
+  if (photoUrl) {
+    const img=document.createElement("img");
+    img.className="student-photo"; img.alt="Fotografía del estudiante";
+    img.referrerPolicy="no-referrer"; img.src=photoUrl;
+    img.onerror=()=>img.remove(); details.appendChild(img);
   }
-  $("studentDetails").hidden=false;
+  const meta=document.createElement("div"); meta.className="student-meta";
+  const fields=[
+    ["Código",alumno.CODIGO_ALUMNO],
+    ["Grado",alumno.GRADO],
+    ["Sección",alumno.SECCION],
+    ["Estado",extra.estado||alumno.ESTADO],
+    ["Hora",extra.hora]
+  ];
+  fields.forEach(([label,value])=>{
+    if (value===undefined || value===null || String(value).trim()==="") return;
+    const line=document.createElement("p");
+    const strong=document.createElement("strong"); strong.textContent=label+": ";
+    line.append(strong,document.createTextNode(String(value))); meta.appendChild(line);
+  });
+  details.appendChild(meta);
 }
 function jsonp(url) {
   return new Promise((resolve,reject)=>{
@@ -62,27 +66,29 @@ async function registerCode(code) {
   if(locked || !code) return;
   locked=true;
   if(!ticket) {
-    $("studentDetails").hidden=true;
-    showResult("Código leído: "+code,"La cámara funciona. Para identificar al estudiante y mostrar su fotografía, abre este escáner desde el sistema 5074 después de iniciar sesión.","warning");
+    showResult("Código leído: "+code,"La cámara funciona. Para registrar asistencia, abre este escáner desde el botón Asistencia QR después de iniciar sesión en el sistema 5074.","warning");
     status("Cámara funcionando · falta autorización","Vuelve al sistema 5074 e ingresa desde Asistencia QR.");
     locked=false;
     return;
   }
   status("Validando código QR…","Consultando el sistema institucional.");
   try {
+    if(!CONFIG.APPS_SCRIPT_URL || !/^https:\/\/script\.google\.com\/macros\/s\//.test(CONFIG.APPS_SCRIPT_URL)) {
+      throw new Error("No llegó la dirección de Google Apps Script. Cierra el escáner y vuelve a abrirlo desde el botón del sistema 5074.");
+    }
     const url=CONFIG.APPS_SCRIPT_URL+"?accion=registrarQR&ticket="+encodeURIComponent(ticket)+"&codigo="+encodeURIComponent(code);
     const r=await jsonp(url);
-    if(!r || !r.ok) {
-      if(r?.alumno) {
-        showStudentDetails(r.alumno,r.message||"El estudiante fue identificado, pero no se registró asistencia.",r.duplicate?"warning":"error");
-      } else {
-        $("studentDetails").hidden=true;
-        showResult("No se encontró el estudiante",r?.message||"El sistema rechazó el registro.","error");
-      }
-      status("No se pudo registrar",r?.message||"Verifica tu sesión.",true);
+    if(!r) throw new Error("El sistema devolvió una respuesta vacía.");
+    const name=r.alumno?.APELLIDOS_Y_NOMBRES || r.nombre || "Estudiante";
+    if(r.duplicate) {
+      showResult(name,r.message||"Este estudiante ya tiene registro hoy.","warning",r.alumno,{estado:r.estado||"YA REGISTRADO",hora:r.hora||""});
+      status("Registro duplicado",r.message||"El estudiante ya figura en asistencia.");
+    } else if(!r.ok) {
+      showResult(r.alumno?name:"No se registró",r.message||"El sistema rechazó el registro.","error",r.alumno);
+      status("No se pudo registrar",r.message||"Verifica tu sesión.",true);
     } else {
-      showStudentDetails(r.alumno||{},r.message||"Asistencia registrada correctamente.",r.duplicate?"warning":"ok");
-      status(r.duplicate?"Registro duplicado":"Asistencia registrada",r.message||"Registro validado por el sistema.");
+      showResult(name,r.message||"Asistencia registrada correctamente.","ok",r.alumno,{estado:r.estado||"PRESENTE",hora:r.hora||""});
+      status("Asistencia registrada",r.message||"Registro validado por el sistema.");
       try{navigator.vibrate?.(120);}catch(e){}
     }
   } catch(e) {
