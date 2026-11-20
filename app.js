@@ -1,253 +1,32 @@
-/*
- * LECTOR QR - I.E. 5074 ALCIDES SPELUCÍN VEGA
- * GitHub Pages -> Apps Script -> Google Sheets.
- * Requiere abrirse desde el botón autenticado del sistema para recibir ticket y api.
- */
 'use strict';
-
-const $ = (id) => document.getElementById(id);
-const params = new URLSearchParams(window.location.search);
-const API_URL = (params.get('api') || '').trim();
-const TICKET = (params.get('ticket') || '').trim();
-
-let qrScanner = null;
-let processing = false;
-let lastAcceptedCode = '';
-let lastAcceptedAt = 0;
-
-function setStatus(title, message, error = false) {
-  const titleEl = $('statusTitle');
-  const messageEl = $('statusText');
-  if (titleEl) {
-    titleEl.textContent = title;
-    titleEl.classList.toggle('error-text', !!error);
-  }
-  if (messageEl) messageEl.textContent = message;
-}
-
-function showResult(title, message, type = 'ok', student = null, attendance = {}) {
-  const panel = $('result');
-  if (panel) panel.className = 'result ' + type;
-  if ($('studentName')) $('studentName').textContent = title || 'Estudiante';
-  if ($('resultMessage')) $('resultMessage').textContent = message || '';
-  if ($('resultIcon')) $('resultIcon').textContent = type === 'error' ? '!' : (type === 'warning' ? '⚠' : '✓');
-
-  const details = $('studentDetails');
-  if (!details) return;
-  details.replaceChildren();
-  if (!student) {
-    details.hidden = true;
-    return;
-  }
-  details.hidden = false;
-
-  const photo = String(student.FOTO_URL || student.FOTO || '').trim();
-  if (photo && /^https:\/\//i.test(photo)) {
-    const img = document.createElement('img');
-    img.className = 'student-photo';
-    img.alt = 'Fotografía del estudiante';
-    img.referrerPolicy = 'no-referrer';
-    img.src = photo;
-    img.onerror = () => img.remove();
-    details.appendChild(img);
-  }
-
-  const meta = document.createElement('div');
-  meta.className = 'student-meta';
-  const rows = [
-    ['Código', student.CODIGO_ALUMNO || ''],
-    ['Grado', student.GRADO || ''],
-    ['Sección', student.SECCION || ''],
-    ['Estado', attendance.estado || ''],
-    ['Hora', attendance.hora || '']
-  ];
-  rows.forEach(([label, value]) => {
-    if (value === '' || value == null) return;
-    const p = document.createElement('p');
-    const b = document.createElement('strong');
-    b.textContent = label + ': ';
-    p.append(b, document.createTextNode(String(value)));
-    meta.appendChild(p);
-  });
-  details.appendChild(meta);
-}
-
-function jsonp(url, timeoutMs = 20000) {
-  return new Promise((resolve, reject) => {
-    const callback = 'asistenciaQR_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
-    const script = document.createElement('script');
-    let finished = false;
-    const cleanup = () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      try { delete window[callback]; } catch (_) { window[callback] = undefined; }
-      script.remove();
-    };
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('Google Apps Script no respondió en 20 segundos. Verifica que publicaste una nueva versión como aplicación web.'));
-    }, timeoutMs);
-
-    window[callback] = (data) => {
-      cleanup();
-      resolve(data);
-    };
-    script.onerror = () => {
-      cleanup();
-      reject(new Error('No se pudo cargar la respuesta de Apps Script. Comprueba la URL /exec y el acceso de la aplicación web.'));
-    };
-    const separator = url.includes('?') ? '&' : '?';
-    script.src = url + separator + 'callback=' + encodeURIComponent(callback) + '&_=' + Date.now();
-    document.head.appendChild(script);
-  });
-}
-
-function validateConnection() {
-  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error('La cámara necesita GitHub Pages con HTTPS y permiso del navegador.');
-  }
-  if (!window.Html5Qrcode) {
-    throw new Error('No se cargó html5-qrcode. Recarga la página y revisa tu conexión a internet.');
-  }
-  if (!API_URL || !/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/i.test(API_URL)) {
-    throw new Error('No llegó una URL válida de Apps Script. Cierra esta pestaña e ingresa nuevamente desde el botón Escáner QR del sistema 5074.');
-  }
-  if (!TICKET) {
-    throw new Error('Falta el ticket de autorización. Inicia sesión en el sistema 5074 y abre el escáner desde su botón.');
-  }
-}
-
-function cleanScannedValue(raw) {
-  let value = String(raw || '').trim();
-  if (!value) return '';
-  // Los QR pueden contener el código directo o una URL con el código como parámetro.
-  if (/^https?:\/\//i.test(value)) {
-    try {
-      const u = new URL(value);
-      for (const key of ['codigo', 'code', 'qr', 'id', 'CODIGO_ALUMNO', 'CODIGO_QR']) {
-        const found = u.searchParams.get(key);
-        if (found) return found.trim();
-      }
-      const last = u.pathname.split('/').filter(Boolean).pop();
-      if (last) value = last;
-    } catch (_) { /* se envía el contenido original */ }
-  }
-  return value.replace(/[\r\n\t]/g, '').trim();
-}
-
-async function registerAttendance(rawCode) {
-  const code = cleanScannedValue(rawCode);
-  if (!code) return;
-  const now = Date.now();
-  if (processing || (code === lastAcceptedCode && now - lastAcceptedAt < 3500)) return;
-  processing = true;
-  lastAcceptedCode = code;
-  lastAcceptedAt = now;
-
-  try {
-    validateConnection();
-    setStatus('Código QR detectado', 'Validando al estudiante y enviando el registro a Google Sheets…');
-    showResult('Procesando asistencia', 'No retires el código todavía.');
-
-    const url = API_URL + '?accion=registrarQR'
-      + '&ticket=' + encodeURIComponent(TICKET)
-      + '&codigo=' + encodeURIComponent(code);
-    const response = await jsonp(url);
-
-    if (!response || typeof response !== 'object') {
-      throw new Error('La respuesta del servidor no tiene un formato válido.');
-    }
-
-    const student = response.alumno || null;
-    const studentName = student?.APELLIDOS_Y_NOMBRES || response.nombre || 'Estudiante';
-
-    if (response.duplicate) {
-      showResult(studentName, response.message || 'Este alumno ya tiene asistencia registrada hoy.', 'warning', student, {
-        estado: response.estado || 'DUPLICADO', hora: response.hora || ''
-      });
-      setStatus('Asistencia ya registrada', 'No se agregó una fila duplicada a Google Sheets.');
-      return;
-    }
-
-    if (response.ok !== true || response.saved === false) {
-      throw new Error(response.message || 'El servidor no confirmó el registro.');
-    }
-
-    showResult(studentName, response.message || 'Asistencia guardada y verificada en Google Sheets.', 'ok', student, {
-      estado: response.estado || 'PRESENTE', hora: response.hora || ''
-    });
-    setStatus('¡Asistencia guardada!', 'Google Sheets confirmó el registro de ' + studentName + '.');
-    try { if (navigator.vibrate) navigator.vibrate([100, 60, 100]); } catch (_) {}
-
-  } catch (error) {
-    showResult('No se registró la asistencia', error.message || String(error), 'error');
-    setStatus('Error de registro', error.message || String(error), true);
-  } finally {
-    // Evita leer el mismo QR varias veces mientras el alumno retira su tarjeta.
-    setTimeout(() => { processing = false; }, 2200);
-  }
-}
-
-async function startCamera() {
-  const retry = $('retryBtn');
-  if (retry) retry.hidden = true;
-  try {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Abre el lector desde la dirección HTTPS de GitHub Pages y permite el uso de la cámara.');
-    }
-    if (!window.Html5Qrcode) throw new Error('No se cargó la biblioteca del lector QR. Recarga la página.');
-
-    setStatus('Activando cámara', 'Acepta el permiso de cámara del navegador.');
-    if (!qrScanner) qrScanner = new Html5Qrcode('reader');
-
-    try {
-      await qrScanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 230, height: 230 }, aspectRatio: 1 },
-        registerAttendance,
-        () => {}
-      );
-    } catch (firstError) {
-      const cameras = await Html5Qrcode.getCameras();
-      if (!cameras || !cameras.length) throw firstError;
-      const rear = cameras.filter(c => /back|rear|environment|trasera|posterior/i.test(c.label || ''));
-      const candidates = rear.length ? rear.concat(cameras.filter(c => !rear.some(r => r.id === c.id))) : cameras;
-      let started = false;
-      let lastError = firstError;
-      for (const camera of candidates) {
-        try {
-          await qrScanner.start(camera.id, { fps: 10, qrbox: { width: 230, height: 230 } }, registerAttendance, () => {});
-          started = true;
-          break;
-        } catch (e) { lastError = e; }
-      }
-      if (!started) throw lastError;
-    }
-
-    // Se valida ticket/API antes de intentar registrar; la cámara puede abrirse para diagnóstico.
-    if (TICKET && API_URL) {
-      setStatus('Cámara activa y sistema enlazado', 'Enfoca el código QR del estudiante dentro del recuadro.');
-      showResult('Escáner listo', 'Esperando el código QR del estudiante.');
-    } else {
-      setStatus('Cámara activa, falta autorización', 'Abre el lector desde el botón Escáner QR después de iniciar sesión.');
-      showResult('Modo de prueba', 'La cámara lee códigos, pero no puede guardar asistencia sin ticket.', 'warning');
-    }
-  } catch (error) {
-    setStatus('No se pudo iniciar la cámara', error.message || String(error), true);
-    showResult('Error del escáner', error.message || String(error), 'error');
-    if (retry) retry.hidden = false;
-  }
-}
-
-if ($('retryBtn')) $('retryBtn').addEventListener('click', startCamera);
-if ($('stopBtn')) $('stopBtn').addEventListener('click', async () => {
-  try { if (qrScanner?.isScanning) await qrScanner.stop(); } catch (_) {}
-  setStatus('Cámara detenida', 'Pulsa Reintentar cámara para volver a escanear.');
-  if ($('retryBtn')) $('retryBtn').hidden = false;
-});
-
-window.addEventListener('pagehide', async () => {
-  try { if (qrScanner?.isScanning) await qrScanner.stop(); } catch (_) {}
-});
-window.addEventListener('load', () => setTimeout(startCamera, 300));
+// La URL del panel no es necesariamente la URL de una implementación nueva.
+// El panel envía ?ticket=...&api=... al abrir este lector.
+const PANEL_URL='https://script.google.com/macros/s/AKfycbzk4qk30eq65JoCO8vtTEIJit6sHPMHBEVItWmP-2BAwmw4MS_9MTNnkNC7um9dTfqP/exec';
+const params=new URLSearchParams(location.search);
+const ticket=(params.get('ticket')||'').trim();
+const api=(params.get('api')||'').trim();
+const $=id=>document.getElementById(id);
+let qr=null, activo=false, ocupado=false, ultimo='';
+function apiValida(v){try{const u=new URL(v);return u.protocol==='https:' && u.hostname==='script.google.com' && /^\/macros\/s\/[^/]+\/exec$/.test(u.pathname);}catch{return false;}}
+function mostrar(estado,nombre,mensaje,tipo=''){$('estado').textContent=estado;$('nombre').textContent=nombre;$('mensaje').textContent=mensaje;$('resultado').className='card result '+tipo;$('resultIcon').textContent=tipo==='ok'?'✓':tipo==='error'?'!':tipo==='warn'?'⚠':'⌁';}
+function listo(){return !!ticket && apiValida(api);}
+function acceso(){const ok=listo();$('authBadge').textContent=ok?'Acceso autorizado':'Falta autorización';$('authBadge').className='badge '+(ok?'good':'bad');$('startBtn').disabled=!ok;if(!ok)mostrar('No se registró la asistencia','Conexión pendiente','Abre el panel institucional, inicia sesión y pulsa «Escáner QR». No abras directamente el enlace de GitHub.','warn');else mostrar('Lector autorizado','Listo para escanear','Pulsa «Iniciar cámara» y presenta un carné QR.');}
+function consultar(codigo){return new Promise((resolve,reject)=>{
+ const callback='qr5074_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+ const script=document.createElement('script');let cerrado=false;
+ const timer=setTimeout(()=>terminar(new Error('El servidor no respondió en 20 segundos. No se confirmó ningún registro.')),20000);
+ function limpiar(){clearTimeout(timer);try{delete window[callback];}catch{window[callback]=undefined;}script.remove();}
+ function terminar(err,data){if(cerrado)return;cerrado=true;limpiar();err?reject(err):resolve(data);}
+ window[callback]=data=>terminar(null,data);
+ script.onerror=()=>terminar(new Error('No se pudo conectar con Apps Script. Comprueba la implementación y los permisos.'));
+ const u=new URL(api);u.searchParams.set('accion','registrarQR');u.searchParams.set('ticket',ticket);u.searchParams.set('codigo',codigo);u.searchParams.set('callback',callback);script.src=u.toString();document.body.appendChild(script);
+ });}
+async function lectura(texto){const codigo=String(texto||'').trim();if(!codigo||ocupado||codigo===ultimo)return;ocupado=true;ultimo=codigo;mostrar('Verificando asistencia','Consultando Google Sheets','Espera la confirmación del servidor…');try{
+ const r=await consultar(codigo);const a=r&&r.alumno||{};const nombre=a.APELLIDOS_Y_NOMBRES||'Estudiante';
+ if(r&&r.ok===true&&r.saved===true){mostrar('Asistencia registrada',nombre,r.message||'Registro confirmado en Google Sheets.','ok');const foto=String(a.FOTO_URL||'');$('foto').hidden=!/^https:\/\//i.test(foto);if(!$('foto').hidden)$('foto').src=foto;}
+ else if(r&&r.duplicate){mostrar('Asistencia duplicada',nombre,r.message||'Ya existe una asistencia hoy; no se creó otra.','warn');}
+ else{mostrar('No se registró la asistencia',nombre,(r&&r.message)||'El servidor no confirmó el guardado.','error');}
+ }catch(e){mostrar('No se registró la asistencia','Error de conexión',e.message||String(e),'error');}finally{setTimeout(()=>{ocupado=false;ultimo='';},2800);}}
+async function iniciar(){if(!listo()){acceso();return;}if(activo)return;try{if(typeof Html5Qrcode==='undefined')throw new Error('No cargó la biblioteca de cámara. Revisa tu conexión.');$('startBtn').disabled=true;$('cameraStatus').textContent='Solicitando permiso para usar la cámara…';qr=qr||new Html5Qrcode('reader');await qr.start({facingMode:'environment'},{fps:10,qrbox:{width:230,height:230}},lectura,()=>{});activo=true;$('stopBtn').disabled=false;$('cameraStatus').textContent='Cámara activa. Coloca el QR dentro del recuadro.';}catch(e){$('startBtn').disabled=false;$('cameraStatus').textContent='No se pudo iniciar la cámara: '+(e.message||e);}}
+async function detener(){if(!activo||!qr)return;try{await qr.stop();activo=false;$('stopBtn').disabled=true;$('startBtn').disabled=!listo();$('cameraStatus').textContent='Cámara detenida.';}catch(e){$('cameraStatus').textContent='Error al detener la cámara: '+(e.message||e);}}
+$('panelLink').href=PANEL_URL;$('startBtn').addEventListener('click',iniciar);$('stopBtn').addEventListener('click',detener);acceso();
