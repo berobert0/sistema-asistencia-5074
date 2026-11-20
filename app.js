@@ -1,4 +1,4 @@
-const API="https://script.google.com/macros/s/AKfycbwZKYugFQQjO6sb9MLSkMhETq4v-nHqgYzs45J4tRdYWW3AGIThbmW2TAPl1xv7X8z-SQ/exec";
+const API="https://script.google.com/macros/s/AKfycbzk4qk30eq65JoCO8vtTEIJit6sHPMHBEVItWmP-2BAwmw4MS_9MTNnkNC7um9dTfqP/exec";
 
 let bloqueado=false;
 let sonido;
