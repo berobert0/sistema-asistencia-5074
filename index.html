@@ -1,53 +1,27 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <title>Escáner de estudiantes | I.E. 5074</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div class="header">
-  <h2>I.E. "5074 Alcides Spelucín Vega"</h2>
-  <p id="gradoSeccion">Grado y sección no especificados</p>
-  <p id="docente">👨‍🏫 Docente no identificado</p>
-  <p id="horario">🕒 Horario no especificado</p>
-</div>
-
-<div id="reader"></div>
-
-<div class="panel">
-  <img id="foto" class="foto">
-  <div id="nombre" class="nombre"></div>
-  <div id="estado" class="estado"></div>
-  <div id="mensaje" class="mensaje"></div>
-</div>
-
-<script>
-  const params = new URLSearchParams(window.location.search);
-
-  const nombre = params.get("docente");
-  const grado = params.get("grado");
-  const seccion = params.get("seccion");
-  const horario = params.get("horario");
-
-  if (nombre) {
-    document.getElementById("docente").textContent =
-      "👨‍🏫 Prof. " + nombre;
-  }
-
-  if (grado && seccion) {
-    document.getElementById("gradoSeccion").textContent =
-      grado + "° " + seccion + " Nivel Primaria";
-  }
-
-  if (horario) {
-    document.getElementById("horario").textContent =
-      "🕒 " + horario;
-  }
-</script>
-
-<script src="app.js"></script>
+  <div class="header">
+    <h2>I.E. "5074 Alcides Spelucín Vega"</h2>
+    <p id="docenteSeccion">Grado y sección: cargando...</p>
+    <p id="docenteNombre">👩‍🏫 Identificando docente...</p>
+    <p>🕒 7:40 a.m. - 12:40 p.m.</p>
+    <p id="autorizacion" class="auth">Comprobando autorización...</p>
+  </div>
+  <div id="reader"></div>
+  <div class="panel" aria-live="polite">
+    <img id="foto" class="foto" alt="Foto del estudiante">
+    <div id="nombre" class="nombre"></div>
+    <div id="estado" class="estado">ESPERANDO QR</div>
+    <div id="mensaje" class="mensaje">Apunta la cámara al QR del estudiante.</div>
+  </div>
+  <script src="app.js"></script>
 </body>
 </html>
