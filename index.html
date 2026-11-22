@@ -1,20 +1,18 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<link rel="stylesheet" href="style.css">
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
 <div class="header">
   <h2>I.E. "5074 Alcides Spelucín Vega"</h2>
-  <p id="gradoSeccion">Grado y sección: No identificados</p>
-  <p id="docenteNombre">👨‍🏫 Docente: No identificado</p>
-  <p id="horarioDocente">🕒 Horario: No especificado</p>
+  <p id="gradoSeccion">Grado y sección no especificados</p>
+  <p id="docente">👨‍🏫 Docente no identificado</p>
+  <p id="horario">🕒 Horario no especificado</p>
 </div>
 
 <div id="reader"></div>
@@ -27,25 +25,29 @@
 </div>
 
 <script>
-// Datos enviados por el panel institucional al abrir el escáner.
-// Ejemplo: ?docente=ANA%20BETTY&grado=4&seccion=A&horario=7%3A40%20a.m.%20-%2012%3A40%20p.m.
-(function () {
-  const p = new URLSearchParams(window.location.search);
-  const docente = (p.get('docente') || p.get('nombreDocente') || '').trim();
-  const grado = (p.get('grado') || '').trim();
-  const seccion = (p.get('seccion') || '').trim().toUpperCase();
-  const asignacion = (p.get('gradoSeccion') || p.get('seccionAsignada') || '').trim().toUpperCase();
-  const horario = (p.get('horario') || '').trim();
-  const match = asignacion.match(/^([1-6])\s*([A-Z])$/);
-  const g = grado || (match ? match[1] : '');
-  const sec = seccion || (match ? match[2] : '');
-  if (g && sec) document.getElementById('gradoSeccion').textContent = g + '.º ' + sec + ' Nivel Primaria';
-  else if (asignacion) document.getElementById('gradoSeccion').textContent = 'Grado y sección: ' + asignacion;
-  if (docente) document.getElementById('docenteNombre').textContent = '👨‍🏫 ' + docente;
-  if (horario) document.getElementById('horarioDocente').textContent = '🕒 ' + horario;
-})();
-</script>
-<script src="app.js"></script>
+  const params = new URLSearchParams(window.location.search);
 
+  const nombre = params.get("docente");
+  const grado = params.get("grado");
+  const seccion = params.get("seccion");
+  const horario = params.get("horario");
+
+  if (nombre) {
+    document.getElementById("docente").textContent =
+      "👨‍🏫 Prof. " + nombre;
+  }
+
+  if (grado && seccion) {
+    document.getElementById("gradoSeccion").textContent =
+      grado + "° " + seccion + " Nivel Primaria";
+  }
+
+  if (horario) {
+    document.getElementById("horario").textContent =
+      "🕒 " + horario;
+  }
+</script>
+
+<script src="app.js"></script>
 </body>
 </html>
