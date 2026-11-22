@@ -121,3 +121,22 @@ qr.start(
 if (!ticket) {
   mostrarResultado("Para registrar asistencia, abre el escáner desde el panel institucional.", "SIN AUTORIZACIÓN", "#f97316");
 }
+
+
+// Información visual proporcionada por el panel que ya autenticó al usuario.
+// Estos parámetros NO conceden permisos: el servidor valida el ticket y la sesión.
+(function mostrarDocenteDelPanel() {
+  const p = new URLSearchParams(window.location.search);
+  const nombre = (p.get('docente') || '').trim().slice(0, 120);
+  const rol = (p.get('rol') || '').trim().toUpperCase();
+  const seccion = (p.get('seccion') || '').trim().toUpperCase().slice(0, 12);
+  const n = document.getElementById('docenteNombre');
+  const s = document.getElementById('docenteSeccion');
+  const a = document.getElementById('autorizacion');
+  if (n) n.textContent = nombre || 'Usuario no identificado';
+  if (s) s.textContent = rol === 'ADMIN' ? 'Administrador · Toda la institución' : (seccion ? 'Grado y sección: ' + seccion : 'Grado y sección no recibidos');
+  if (a) {
+    a.textContent = ticket ? '● Autorización de escáner recibida' : '⚠ Abre este lector desde el panel institucional';
+    if (ticket) a.classList.add('ok');
+  }
+})();
