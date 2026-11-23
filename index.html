@@ -15,13 +15,35 @@
     <p>🕒 7:40 a.m. - 12:40 p.m.</p>
     <p id="autorizacion" class="auth">Comprobando autorización...</p>
   </div>
-  <div id="reader"></div>
+  <div id="directLogin" style="display:none;text-align:center;margin:12px auto;max-width:320px;padding:12px;background:#fff;border-radius:10px">
+  <p style="font-size:14px">Para utilizar el lector, inicia sesión con tu usuario institucional.</p>
+  <a href="https://script.google.com/macros/s/AKfycbzk4qk30eq65JoCO8vtTEIJit6sHPMHBEVItWmP-2BAwmw4MS_9MTNnkNC7um9dTfqP/exec?accion=accesoEscaner" style="display:block;padding:12px;background:#2563eb;color:white;border-radius:8px;text-decoration:none;font-weight:bold">Ingresar con usuario y contraseña</a>
+</div>
+<div id="reader"></div>
   <div class="panel" aria-live="polite">
     <img id="foto" class="foto" alt="Foto del estudiante">
     <div id="nombre" class="nombre"></div>
     <div id="estado" class="estado">ESPERANDO QR</div>
     <div id="mensaje" class="mensaje">Apunta la cámara al QR del estudiante.</div>
   </div>
-  <script src="app.js"></script>
+  <script>
+if (!new URLSearchParams(location.search).get('ticket')) {
+  document.getElementById('directLogin').style.display='block';
+  document.getElementById('reader').style.display='none';
+}
+</script>
+<script>
+if (new URLSearchParams(location.search).get('ticket')) {
+  const script = document.createElement('script');
+  script.src = 'app.js';
+  document.body.appendChild(script);
+} else {
+  document.getElementById('docenteSeccion').textContent = 'Acceso institucional';
+  document.getElementById('docenteNombre').textContent = '👩‍🏫 Inicia sesión para identificarte';
+  document.getElementById('autorizacion').textContent = 'Acceso seguro requerido';
+  document.getElementById('estado').textContent = '';
+  document.getElementById('mensaje').textContent = '';
+}
+</script>
 </body>
 </html>
